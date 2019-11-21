@@ -527,26 +527,7 @@ var flower = (function () {
             return;
         }
 
-        $('#tasks-table').DataTable({
-            rowId: 'uuid',
-            searching: true,
-            paginate: true,
-            scrollX: true,
-            scrollCollapse: true,
-            processing: true,
-            serverSide: true,
-            colReorder: true,
-            ajax: {
-                type: 'POST',
-                url: url_prefix() + '/tasks/datatable'
-            },
-            order: [
-                [7, "asc"]
-            ],
-            oSearch: {
-                "sSearch": $.urlParam('state') ? 'state:' + $.urlParam('state') : ''
-            },
-            columnDefs: [{
+        const columnDefs = [{
                 targets: 0,
                 data: 'name',
                 visible: isColumnVisible('name'),
@@ -653,8 +634,85 @@ var flower = (function () {
                 targets: 16,
                 data: 'eta',
                 visible: isColumnVisible('eta')
-            }, ],
+            },
+        ];
+
+        const sortColumn = $.urlParam('sortColumn') ? $.urlParam('sortColumn').toLowerCase() : 'started';
+        const sortOrder = $.urlParam('sortOrder') ? $.urlParam('sortOrder').toLowerCase() : 'desc';
+
+        const sortColumDef = columnDefs.find(elem => elem.data == sortColumn);
+
+        const sortSpec = [sortColumDef ? sortColumDef.targets : 7, sortOrder];
+
+        const sSearch = (
+          $.urlParam('search') ? $.urlParam('search') : (
+            $.urlParam('state') ? 'state:' + $.urlParam('state') : ''
+          )
+        );
+
+        const iDisplayLength = $.urlParam('count') ? parseInt($.urlParam('count'), 10) : 100;
+
+        var table = $('#tasks-table').DataTable({
+            rowId: 'uuid',
+            searching: true,
+            paginate: true,
+            scrollX: true,
+            scrollCollapse: true,
+            processing: true,
+            serverSide: true,
+            colReorder: true,
+            iDisplayLength: iDisplayLength,
+            ajax: {
+                type: 'POST',
+                url: url_prefix() + '/tasks/datatable'
+            },
+            order: [
+                sortSpec
+            ],
+            oSearch: {
+                "sSearch": sSearch
+            },
+            columnDefs: columnDefs,
         });
+
+        $('#tasks-table_filter input').unbind();
+        $('#tasks-table_filter input').keyup(function (e) {
+            var url = new URL(window.location.href);
+            var params = url.searchParams;
+            params.set('search', $(this).val());
+
+            window.history.replaceState({}, "Flower", url.toString());
+
+            table.search($(this).val()).draw();
+        });
+
+        var options = [10, 25, 50, 100];
+
+        var counter = $('#tasks-table_length select');
+        $('option', counter).remove();
+
+        if (!options.includes(iDisplayLength)) {
+            options.push(iDisplayLength);
+            options.sort((a, b) => a - b);
+        }
+
+        options.map(value => {
+          counter.append($("<option></option>")
+            .attr("value", value).text(value));
+        });
+
+        $('#tasks-table_length select').unbind();
+        $('#tasks-table_length select').change(function () {
+            var url = new URL(window.location.href);
+            var params = url.searchParams;
+            params.set('count', $(this).val());
+
+            window.history.replaceState({}, "Flower", url.toString());
+
+            table.page.len(parseInt($(this).val()));
+        });
+
+        counter.val(iDisplayLength);
 
     });
 
