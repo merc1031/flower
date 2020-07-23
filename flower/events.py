@@ -34,6 +34,7 @@ class EventsState(State):
     # EventsState object is created and accessed only from ioloop thread
 
     def __init__(self, *args, **kwargs):
+        self.queue_filter = kwargs.pop('queue_filter', None)
         super(EventsState, self).__init__(*args, **kwargs)
         self.counter = collections.defaultdict(Counter)
         self.metrics = PrometheusMetrics()
@@ -44,25 +45,36 @@ class EventsState(State):
 
         self.counter[worker_name][event_type] += 1
 
+        save_event = True
+
         if event_type.startswith('task-'):
             task_id = event['uuid']
             task_name = event.get('name', '')
+            if self.queue_filter is not None:
+                save_event = False
+                if (
+                    (event.get('queue', None) in self.queue_filter) or
+                    (task_id in self.tasks and self.tasks[task_id].queue in self.queue_filter)
+                ):
+                    save_event = True
             if not task_name and task_id in self.tasks:
                 task_name = self.tasks[task_id].name or ''
-            self.metrics.events.labels(worker_name, event_type, task_name).inc()
+            if save_event:
+                self.metrics.events.labels(worker_name, event_type, task_name).inc()
 
             runtime = event.get('runtime', 0)
-            if runtime:
+            if runtime and save_event:
                 self.metrics.runtime.labels(worker_name, task_name).observe(runtime)
 
         # Send event to api subscribers (via websockets)
         classname = api.events.getClassName(event_type)
         cls = getattr(api.events, classname, None)
-        if cls:
+        if cls and save_event:
             cls.send_message(event)
 
         # Save the event
-        super(EventsState, self).event(event)
+        if save_event:
+            super(EventsState, self).event(event)
 
 
 class Events(threading.Thread):

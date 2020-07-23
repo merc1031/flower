@@ -65,6 +65,7 @@ define("tasks_columns", type=str,
 define("auth_provider", default='flower.views.auth.GoogleAuth2LoginHandler',
        help="auth handler class")
 define("url_prefix", type=str, help="base url prefix")
+define("queue_filter", type=str, help="only show events on these queue(s) [',' seperated]")
 
 # deprecated options
 define("inspect", default=False, help="inspect workers", type=bool)
